@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useMemo } from "react";
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import ArticleCard from "@/components/ArticleCard";
@@ -14,26 +14,62 @@ const Articles = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
     search: '',
-    publicationType: '',
+    publicationType: 'all',
     selectedTags: [] as string[],
-    memberState: '',
+    memberState: 'all',
     dateRange: { start: '', end: '' }
   });
 
-  const { articles, loading, fetchArticles } = useArticles();
+  const { articles: allArticles, loading } = useArticles();
   const { tags } = useTags();
 
-  const handleFilterChange = useCallback((newFilters: typeof filters) => {
+  // Client-side filtering
+  const filteredArticles = useMemo(() => {
+    if (!allArticles) return [];
+    
+    return allArticles.filter(article => {
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const titleMatch = article.title.toLowerCase().includes(searchTerm);
+        const contentMatch = article.content?.toLowerCase().includes(searchTerm) || false;
+        if (!titleMatch && !contentMatch) return false;
+      }
+      
+      // Publication type filter
+      if (filters.publicationType && filters.publicationType !== 'all') {
+        const hasPublicationType = article.tags.some(tag => tag.id === filters.publicationType);
+        if (!hasPublicationType) return false;
+      }
+      
+      // Tags filter
+      if (filters.selectedTags.length > 0) {
+        const hasSelectedTag = article.tags.some(tag => filters.selectedTags.includes(tag.id));
+        if (!hasSelectedTag) return false;
+      }
+      
+      // Date range filter
+      if (filters.dateRange.start) {
+        if (article.publication_date < filters.dateRange.start) return false;
+      }
+      if (filters.dateRange.end) {
+        if (article.publication_date > filters.dateRange.end) return false;
+      }
+      
+      return true;
+    });
+  }, [allArticles, filters]);
+
+  const handleFilterChange = (newFilters: typeof filters) => {
     setFilters(newFilters);
     setCurrentPage(1); // Reset to first page when filters change
-    fetchArticles(newFilters);
-  }, [fetchArticles]);
+  };
 
   // Pagination logic
-  const totalPages = Math.ceil(articles.length / ARTICLES_PER_PAGE);
+  const totalPages = Math.ceil(filteredArticles.length / ARTICLES_PER_PAGE);
   const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
   const endIndex = startIndex + ARTICLES_PER_PAGE;
-  const currentArticles = articles.slice(startIndex, endIndex);
+  const currentArticles = filteredArticles.slice(startIndex, endIndex);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -64,7 +100,7 @@ const Articles = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Our documents</h1>
           <p className="text-muted-foreground">
-            {articles.length} document{articles.length !== 1 ? 's' : ''} found
+            {filteredArticles.length} document{filteredArticles.length !== 1 ? 's' : ''} found
           </p>
         </div>
 
@@ -72,7 +108,8 @@ const Articles = () => {
           {/* Sidebar */}
           <aside className="lg:w-80 flex-shrink-0">
             <FilterSidebar 
-              tags={tags} 
+              tags={tags}
+              filters={filters}
               onFilterChange={handleFilterChange}
             />
           </aside>

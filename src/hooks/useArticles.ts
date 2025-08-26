@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -26,13 +26,7 @@ export const useArticles = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchArticles = async (filters: ArticleFilters = {
-    search: '',
-    publicationType: '',
-    selectedTags: [],
-    memberState: '',
-    dateRange: { start: '', end: '' }
-  }) => {
+  const fetchArticles = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -46,19 +40,6 @@ export const useArticles = () => {
           )
         `)
         .order('publication_date', { ascending: false });
-
-      // Apply search filter
-      if (filters.search) {
-        query = query.or(`title.ilike.%${filters.search}%,content.ilike.%${filters.search}%`);
-      }
-
-      // Apply date range filter
-      if (filters.dateRange.start) {
-        query = query.gte('publication_date', filters.dateRange.start);
-      }
-      if (filters.dateRange.end) {
-        query = query.lte('publication_date', filters.dateRange.end);
-      }
 
       const { data, error: fetchError } = await query;
 
@@ -90,23 +71,8 @@ export const useArticles = () => {
         }
       });
 
-      let filteredArticles = Array.from(articlesMap.values());
-
-      // Apply tag filters
-      if (filters.selectedTags.length > 0) {
-        filteredArticles = filteredArticles.filter(article =>
-          article.tags.some(tag => filters.selectedTags.includes(tag.id))
-        );
-      }
-
-      // Apply publication type filter
-      if (filters.publicationType) {
-        filteredArticles = filteredArticles.filter(article =>
-          article.tags.some(tag => tag.id === filters.publicationType)
-        );
-      }
-
-      setArticles(filteredArticles);
+      const allArticles = Array.from(articlesMap.values());
+      setArticles(allArticles);
     } catch (err) {
       console.error('Error fetching articles:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -118,7 +84,7 @@ export const useArticles = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const deleteArticle = async (articleId: string) => {
     try {
@@ -146,7 +112,7 @@ export const useArticles = () => {
 
   useEffect(() => {
     fetchArticles();
-  }, []);
+  }, [fetchArticles]);
 
   return {
     articles,
@@ -154,7 +120,7 @@ export const useArticles = () => {
     error,
     fetchArticles,
     deleteArticle,
-    refetch: () => fetchArticles()
+    refetch: fetchArticles
   };
 };
 
