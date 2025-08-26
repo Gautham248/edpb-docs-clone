@@ -1,0 +1,11 @@
+# Netlify SPA redirect rules
+/* /index.html 200
+
+# Handle admin routes specifically
+/admin/* /index.html 200
+
+# Handle article routes
+/article/* /index.html 200
+
+# Handle any other routes
+* /index.html 200
